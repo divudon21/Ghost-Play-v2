@@ -7,6 +7,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -44,6 +46,9 @@ object PlaylistStorage {
 fun PlaylistScreen(navController: NavController) {
     val context = LocalContext.current
     var showAddDialog by remember { mutableStateOf(false) }
+    var showEditDialog by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var selectedPlaylist by remember { mutableStateOf<Playlist?>(null) }
     var playlists by remember { mutableStateOf(PlaylistStorage.getPlaylists(context)) }
 
     Scaffold(
@@ -101,16 +106,28 @@ fun PlaylistScreen(navController: NavController) {
                                 },
                             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                         ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Text(text = playlist.name, style = MaterialTheme.typography.titleLarge)
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(text = playlist.url, style = MaterialTheme.typography.bodyMedium)
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "User Agent: ${playlist.userAgent}", 
-                                    style = MaterialTheme.typography.bodySmall, 
-                                    color = MaterialTheme.colorScheme.primary
-                                )
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(text = playlist.name, style = MaterialTheme.typography.titleLarge)
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(text = playlist.url, style = MaterialTheme.typography.bodyMedium)
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "User Agent: ${playlist.userAgent}", 
+                                        style = MaterialTheme.typography.bodySmall, 
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                                IconButton(onClick = { 
+                                    selectedPlaylist = playlist
+                                    showEditDialog = true 
+                                }) {
+                                    Icon(Icons.Default.Edit, contentDescription = "Edit Playlist")
+                                }
                             }
                         }
                     }
@@ -126,6 +143,62 @@ fun PlaylistScreen(navController: NavController) {
                     PlaylistStorage.savePlaylists(context, newList)
                     playlists = newList
                     showAddDialog = false
+                }
+            )
+        }
+        
+        if (showEditDialog && selectedPlaylist != null) {
+            EditPlaylistDialog(
+                playlist = selectedPlaylist!!,
+                onDismiss = { 
+                    showEditDialog = false
+                    selectedPlaylist = null
+                },
+                onSave = { name, url, userAgent ->
+                    val newList = playlists.map { 
+                        if (it == selectedPlaylist) Playlist(name, url, userAgent) else it 
+                    }
+                    PlaylistStorage.savePlaylists(context, newList)
+                    playlists = newList
+                    showEditDialog = false
+                    selectedPlaylist = null
+                },
+                onDelete = {
+                    showEditDialog = false
+                    showDeleteDialog = true
+                }
+            )
+        }
+        
+        if (showDeleteDialog && selectedPlaylist != null) {
+            AlertDialog(
+                onDismissRequest = { 
+                    showDeleteDialog = false
+                    selectedPlaylist = null
+                },
+                title = { Text("Delete Playlist") },
+                text = { Text("Are you sure you want to delete '${selectedPlaylist?.name}'?") },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            val newList = playlists.filter { it != selectedPlaylist }
+                            PlaylistStorage.savePlaylists(context, newList)
+                            playlists = newList
+                            showDeleteDialog = false
+                            selectedPlaylist = null
+                        },
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Text("Delete")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { 
+                        showDeleteDialog = false
+                        selectedPlaylist = null
+                    }) {
+                        Text("Cancel")
+                    }
                 }
             )
         }
@@ -226,6 +299,136 @@ fun AddPlaylistDialog(onDismiss: () -> Unit, onSave: (String, String, String) ->
                 enabled = name.isNotBlank() && url.isNotBlank() && (selectedAgent != "Custom" || customAgent.isNotBlank())
             ) {
                 Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EditPlaylistDialog(
+    playlist: Playlist,
+    onDismiss: () -> Unit, 
+    onSave: (String, String, String) -> Unit,
+    onDelete: () -> Unit
+) {
+    var name by remember { mutableStateOf(playlist.name) }
+    var url by remember { mutableStateOf(playlist.url) }
+    var expanded by remember { mutableStateOf(false) }
+    
+    val userAgents = listOf(
+        "Chrome (PC)", 
+        "Chrome (Android)", 
+        "Firefox (PC)", 
+        "IE (PC)", 
+        "iPhone", 
+        "Nokia", 
+        "Custom"
+    )
+    
+    var selectedAgent by remember { 
+        mutableStateOf(
+            if (userAgents.contains(playlist.userAgent) || playlist.userAgent.isBlank()) {
+                if (playlist.userAgent.isBlank()) userAgents[0] else playlist.userAgent
+            } else {
+                "Custom"
+            }
+        ) 
+    }
+    
+    var customAgent by remember { 
+        mutableStateOf(if (!userAgents.contains(playlist.userAgent) && playlist.userAgent.isNotBlank()) playlist.userAgent else "") 
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Edit Playlist") },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = url,
+                    onValueChange = { url = it },
+                    label = { Text("URL") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                ExposedDropdownMenuBox(
+                    expanded = expanded,
+                    onExpandedChange = { expanded = !expanded }
+                ) {
+                    OutlinedTextField(
+                        value = selectedAgent,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("User Agent") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false }
+                    ) {
+                        userAgents.forEach { agent ->
+                            DropdownMenuItem(
+                                text = { Text(agent) },
+                                onClick = {
+                                    selectedAgent = agent
+                                    expanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+                
+                if (selectedAgent == "Custom") {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = customAgent,
+                        onValueChange = { customAgent = it },
+                        label = { Text("Custom User Agent") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Row {
+                TextButton(
+                    onClick = onDelete,
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Delete")
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                TextButton(
+                    onClick = { 
+                        val finalAgent = if (selectedAgent == "Custom") customAgent else selectedAgent
+                        if (name.isNotBlank() && url.isNotBlank()) {
+                            onSave(name, url, finalAgent)
+                        }
+                    },
+                    enabled = name.isNotBlank() && url.isNotBlank() && (selectedAgent != "Custom" || customAgent.isNotBlank())
+                ) {
+                    Text("Update")
+                }
             }
         },
         dismissButton = {
