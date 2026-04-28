@@ -355,7 +355,7 @@ suspend fun fetchPlaylist(url: String, userAgent: String): List<PlaylistItem> = 
                 
                 val nameParts = l.split(",")
                 if (nameParts.size > 1) {
-                    currentTitle = nameParts.last().trim()
+                    currentTitle = nameParts.subList(1, nameParts.size).joinToString(",").trim()
                 } else {
                     currentTitle = "Unknown Channel"
                 }
