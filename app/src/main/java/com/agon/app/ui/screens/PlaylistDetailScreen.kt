@@ -359,7 +359,7 @@ suspend fun fetchPlaylist(url: String, userAgent: String): List<PlaylistItem> = 
                 } else {
                     currentTitle = "Unknown Channel"
                 }
-            } else if (l.isNotEmpty() && !l.startsWith("#")) {
+            } else if (l.isNotEmpty() && !l.startsWith("#") && currentTitle.isNotEmpty()) {
                 var streamUrl = l
                 var urlUserAgent = currentUserAgent
                 var urlCookie = currentCookie
