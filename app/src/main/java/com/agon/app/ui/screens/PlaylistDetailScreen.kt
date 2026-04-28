@@ -386,7 +386,7 @@ suspend fun fetchPlaylist(url: String, userAgent: String): List<PlaylistItem> = 
                 }
                 
                 items.add(PlaylistItem(
-                    title = currentTitle, 
+                    title = currentTitle.ifBlank { "Unknown Channel" }, 
                     logoUrl = currentLogo, 
                     url = streamUrl,
                     group = currentGroup,
